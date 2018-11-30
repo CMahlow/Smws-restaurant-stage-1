@@ -1,14 +1,28 @@
 let restaurants,
   neighborhoods,
-  cuisines
-var newMap
-var markers = []
+  cuisines;
+var newMap;
+var markers = [];
 
 /**
  * Fetch neighborhoods and cuisines as soon as the page is loaded.
  */
-document.addEventListener('DOMContentLoaded', (event) => {
-  initMap(); // added 
+  document.addEventListener('DOMContentLoaded', (event) => {
+     /**checks if the browser supports service workers. */
+      if ('serviceWorker' in navigator) {
+       navigator.serviceWorker
+        .register('./sw.js')
+        .then( (registration) => {
+          // Registration was successful
+          console.log('ServiceWorker registered, scope: ', registration.scope);
+        })
+        	    .catch( (error) => {
+  	      // registration failed
+  	      console.log('ServiceWorker registration failed: ', error);
+  	    });
+  	  }
+
+  initMap(); // added
   fetchNeighborhoods();
   fetchCuisines();
 });
@@ -25,7 +39,7 @@ fetchNeighborhoods = () => {
       fillNeighborhoodsHTML();
     }
   });
-}
+};
 
 /**
  * Set neighborhoods HTML.
@@ -38,7 +52,7 @@ fillNeighborhoodsHTML = (neighborhoods = self.neighborhoods) => {
     option.value = neighborhood;
     select.append(option);
   });
-}
+};
 
 /**
  * Fetch all cuisines and set their HTML.
@@ -52,7 +66,7 @@ fetchCuisines = () => {
       fillCuisinesHTML();
     }
   });
-}
+};
 
 /**
  * Set cuisines HTML.
@@ -66,19 +80,19 @@ fillCuisinesHTML = (cuisines = self.cuisines) => {
     option.value = cuisine;
     select.append(option);
   });
-}
+};
 
 /**
  * Initialize leaflet map, called from HTML.
  */
 initMap = () => {
   self.newMap = L.map('map', {
-        center: [40.722216, -73.987501],
+        center: [34.0207, -118.6919],
         zoom: 12,
         scrollWheelZoom: false
       });
   L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.jpg70?access_token={mapboxToken}', {
-    mapboxToken: '<your MAPBOX API KEY HERE>',
+    mapboxToken: 'pk.eyJ1IjoiY29kaW5nbW9tbXkiLCJhIjoiY2pwMXpxcWY4MDF5bDNwbzFmOWRxcDdubSJ9.ub-4VXTT65NmPe3Hej8bOQ',
     maxZoom: 18,
     attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
       '<a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
@@ -86,20 +100,10 @@ initMap = () => {
     id: 'mapbox.streets'
   }).addTo(newMap);
 
-  updateRestaurants();
-}
-/* window.initMap = () => {
-  let loc = {
-    lat: 40.722216,
-    lng: -73.987501
-  };
-  self.map = new google.maps.Map(document.getElementById('map'), {
-    zoom: 12,
-    center: loc,
-    scrollwheel: false
-  });
-  updateRestaurants();
-} */
+      updateRestaurants();
+
+      document.getElementById('map').tabIndex = '-1';
+      };
 
 /**
  * Update page and map for current restaurants.
@@ -121,8 +125,8 @@ updateRestaurants = () => {
       resetRestaurants(restaurants);
       fillRestaurantsHTML();
     }
-  })
-}
+  });
+};
 
 /**
  * Clear current restaurants, their HTML and remove their map markers.
@@ -139,7 +143,7 @@ resetRestaurants = (restaurants) => {
   }
   self.markers = [];
   self.restaurants = restaurants;
-}
+};
 
 /**
  * Create all restaurants HTML and add them to the webpage.
@@ -150,7 +154,7 @@ fillRestaurantsHTML = (restaurants = self.restaurants) => {
     ul.append(createRestaurantHTML(restaurant));
   });
   addMarkersToMap();
-}
+};
 
 /**
  * Create restaurant HTML.
@@ -158,30 +162,63 @@ fillRestaurantsHTML = (restaurants = self.restaurants) => {
 createRestaurantHTML = (restaurant) => {
   const li = document.createElement('li');
 
+  const link = document.createElement('a');
+	  link.href = DBHelper.urlForRestaurant(restaurant);
+	  link.className = restaurant.cuisine_type.toLowerCase();
+	  link.setAttribute('aria-label', 'Details of ' + restaurant.name + ' restaurant, ' + restaurant.neighborhood);
+	  link.tabIndex = '0';
+	  li.append(link);
+
+
+
+
   const image = document.createElement('img');
   image.className = 'restaurant-img';
   image.src = DBHelper.imageUrlForRestaurant(restaurant);
-  li.append(image);
+  image.alt = 'Image of ' + restaurant.name + ' restaurant';
+  link.append(image);
+
+	const label = document.createElement('div');
+	  label.className = 'restaurant-label';
+    link.append(label);
 
   const name = document.createElement('h1');
-  name.innerHTML = restaurant.name;
-  li.append(name);
+   name.className = 'restaurant-name';
+   name.innerHTML = restaurant.name;
+  label.append(name);
 
   const neighborhood = document.createElement('p');
+  neighborhood.className = 'restaurant-neighborhood';
   neighborhood.innerHTML = restaurant.neighborhood;
-  li.append(neighborhood);
+  label.append(neighborhood);
 
   const address = document.createElement('p');
+  address.className = 'restaurant-address';
   address.innerHTML = restaurant.address;
-  li.append(address);
+  label.append(address);
 
-  const more = document.createElement('a');
-  more.innerHTML = 'View Details';
-  more.href = DBHelper.urlForRestaurant(restaurant);
-  li.append(more)
+  const hr = document.createElement('hr');
+  	  label.append(hr);
+
+  const rating = document.createElement('span');
+    rating.className = 'rating';
+    rating.innerHTML = restaurantRating(restaurant);
+    label.append(rating);
+
+  const cuisine = document.createElement('span');
+  cuisine.className = 'cuisine';
+  cuisine.innerHTML = restaurant.cuisine_type;
+  link.append(cuisine)
 
   return li
 }
+restaurantRating = (restaurant) => {
+	  let reviews = restaurant.reviews.map( (r) => r.rating);
+	  let rating = reviews.reduce((a, b) => a + b, 0) / reviews.length;
+	  rating = rating.toFixed(1);
+
+	  return rating;
+	};
 
 /**
  * Add markers for current restaurants to the map.
@@ -197,15 +234,4 @@ addMarkersToMap = (restaurants = self.restaurants) => {
     self.markers.push(marker);
   });
 
-} 
-/* addMarkersToMap = (restaurants = self.restaurants) => {
-  restaurants.forEach(restaurant => {
-    // Add marker to the map
-    const marker = DBHelper.mapMarkerForRestaurant(restaurant, self.map);
-    google.maps.event.addListener(marker, 'click', () => {
-      window.location.href = marker.url
-    });
-    self.markers.push(marker);
-  });
-} */
-
+}
